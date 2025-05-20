@@ -6,13 +6,9 @@
 //
 import Foundation
 
-enum UserType: String, Codable {
-    case driver
-    case passenger
-}
-
 struct User: Identifiable, Codable {
-    let id: String
+    var id: String { uid }
+    let uid: String
     let email: String
-    let userType: UserType
+    let role: String // "passenger" or "driver"
 }

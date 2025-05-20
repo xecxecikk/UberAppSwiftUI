@@ -6,6 +6,7 @@
 //
 import SwiftUI
 import MapKit
+import FirebaseAuth
 
 struct DriverHomeView: View {
     @StateObject private var rideViewModel = RideViewModel()
@@ -15,25 +16,37 @@ struct DriverHomeView: View {
         span: MKCoordinateSpan(latitudeDelta: 0.05, longitudeDelta: 0.05)
     )
     @State private var timer: Timer?
+    @State private var showSettings = false
+    @Environment(\.dismiss) var dismiss
 
     var body: some View {
         VStack {
-            Text("Driver Map")
-                .font(.largeTitle)
-                .padding()
+            HStack {
+                Text("Driver Map")
+                    .font(.largeTitle)
+                Spacer()
+                Button(action: {
+                    showSettings = true
+                }) {
+                    Image(systemName: "gearshape")
+                        .imageScale(.large)
+                        .padding()
+                }
+            }
+            .padding([.horizontal, .top])
 
-            Map(coordinateRegion: $locationViewModel.region, showsUserLocation: true)
+            Map(coordinateRegion: $selectedRegion, showsUserLocation: true)
                 .frame(height: UIScreen.main.bounds.height / 2)
                 .cornerRadius(12)
 
             List(rideViewModel.rideRequests) { ride in
                 VStack(alignment: .leading) {
-                    Text("Passenger: \(ride.passengerId)")
+                    Text("Passenger ID: \(ride.passengerId)")
                         .font(.headline)
-                    Text("Location: \(ride.location.latitude), \(ride.location.longitude)")
+                    Text("Pickup Location: \(ride.location.latitude), \(ride.location.longitude)")
                         .font(.subheadline)
 
-                    HStack {
+                    HStack(spacing: 16) {
                         Button("Show on Map") {
                             selectedRegion.center = CLLocationCoordinate2D(
                                 latitude: ride.location.latitude,
@@ -49,11 +62,50 @@ struct DriverHomeView: View {
                         .buttonStyle(.borderedProminent)
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 6)
+            }
+
+            if rideViewModel.showActionButtons {
+                HStack(spacing: 20) {
+                    Button("Cancel Ride") {
+                        rideViewModel.cancelCurrentRide()
+                    }
+                    .buttonStyle(.bordered)
+
+                    Button("Complete Ride") {
+                        if let ride = rideViewModel.rideRequests.first {
+                            rideViewModel.completeRide(for: ride.passengerId)
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding()
+            }
+        }
+        .sheet(isPresented: $showSettings) {
+            VStack {
+                Text("Settings")
+                    .font(.largeTitle)
+                    .padding()
+                Button(action: {
+                    try? Auth.auth().signOut()
+                    dismiss()
+                }) {
+                    Text("Log Out")
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(Color.red)
+                        .cornerRadius(10)
+                        .padding()
+                }
             }
         }
         .onAppear {
             rideViewModel.listenForRides()
+            if let location = locationViewModel.userLocation {
+                selectedRegion.center = location
+            }
         }
         .onDisappear {
             timer?.invalidate()
@@ -61,7 +113,7 @@ struct DriverHomeView: View {
     }
 
     private func startSendingDriverLocation(for rideId: String) {
-        timer?.invalidate() // stop old timer if exists
+        timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
             if let location = locationViewModel.userLocation {
                 rideViewModel.sendDriverLocation(for: rideId, coordinate: location)

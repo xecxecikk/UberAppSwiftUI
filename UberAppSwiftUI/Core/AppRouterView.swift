@@ -5,24 +5,36 @@
 //  Created by XECE on 19.05.2025.
 //
 import SwiftUI
+import FirebaseAuth
 
 struct AppRouterView: View {
-    @EnvironmentObject var authVM: AuthViewModel
+    @AppStorage("userRole") private var storedUserRole: String = ""
+    @State private var userRole: UserRole? = nil
 
     var body: some View {
         Group {
-            if authVM.isUserLoggedIn {
-                if authVM.userType == .driver {
+            if let role = userRole {
+                switch role {
+                case .driver:
                     DriverHomeView()
-                } else {
+                case .passenger:
                     PassengerHomeView()
                 }
             } else {
-                LoginView()
+                RegisterView(userRole: $userRole)
             }
         }
         .onAppear {
-            authVM.checkLoginStatus()
+            if let currentUser = Auth.auth().currentUser {
+                if let savedRole = UserRole(rawValue: storedUserRole) {
+                    userRole = savedRole
+                }
+            }
         }
     }
+}
+
+enum UserRole: String, Codable {
+    case driver
+    case passenger
 }

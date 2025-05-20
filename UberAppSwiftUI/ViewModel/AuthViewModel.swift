@@ -7,50 +7,55 @@
 
 import Foundation
 import FirebaseAuth
-
-enum UserType {
-    case driver
-    case passenger
-}
+import FirebaseDatabase
 
 final class AuthViewModel: ObservableObject {
-    @Published var isUserLoggedIn = false
-    @Published var userType: UserType?
+    @Published var currentUser: User?
+    private let auth = Auth.auth()
+    private let db = Database.database().reference()
 
-    func checkLoginStatus() {
-        if let user = Auth.auth().currentUser {
-            isUserLoggedIn = true
-            // örnek: Firestore'dan userType alınabilir
-            fetchUserType(uid: user.uid)
-        } else {
-            isUserLoggedIn = false
+    init() {
+        getCurrentUser()
+    }
+
+    func register(email: String, password: String, role: String) {
+        auth.createUser(withEmail: email, password: password) { [weak self] result, error in
+            guard let uid = result?.user.uid, error == nil else { return }
+
+            let user = User(uid: uid, email: email, role: role)
+            self?.db.child("users").child(uid).setValue([
+                "uid": uid,
+                "email": email,
+                "role": role
+            ])
+            self?.currentUser = user
         }
     }
 
-    func fetchUserType(uid: String) {
-        // Firestore'dan userType çek (örnek amaçlı manuel set)
-        self.userType = .driver // ya da .passenger
-    }
-
-    func login(email: String, password: String, completion: @escaping (Bool) -> Void) {
-        Auth.auth().signIn(withEmail: email, password: password) { result, error in
-            DispatchQueue.main.async {
-                self.isUserLoggedIn = (result != nil)
-                completion(result != nil)
-            }
+    func login(email: String, password: String) {
+        auth.signIn(withEmail: email, password: password) { [weak self] result, error in
+            guard let uid = result?.user.uid, error == nil else { return }
+            self?.fetchUser(uid: uid)
         }
     }
 
-    func register(email: String, password: String, userType: UserType, completion: @escaping (Bool) -> Void) {
-        Auth.auth().createUser(withEmail: email, password: password) { result, error in
-            if let uid = result?.user.uid {
-                // Firestore'a kullanıcı bilgilerini kaydet
-                self.userType = userType
-                completion(true)
-            } else {
-                completion(false)
-            }
+    private func fetchUser(uid: String) {
+        db.child("users").child(uid).observeSingleEvent(of: .value) { snapshot in
+            guard let data = snapshot.value as? [String: Any],
+                  let email = data["email"] as? String,
+                  let role = data["role"] as? String else { return }
+
+            self.currentUser = User(uid: uid, email: email, role: role)
         }
+    }
+
+     func getCurrentUser() {
+        guard let uid = auth.currentUser?.uid else { return }
+        fetchUser(uid: uid)
+    }
+
+    func logout() {
+        try? auth.signOut()
+        currentUser = nil
     }
 }
-

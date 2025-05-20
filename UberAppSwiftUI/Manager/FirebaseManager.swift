@@ -7,42 +7,24 @@
 
 import Foundation
 import FirebaseAuth
-import FirebaseFirestore
+import FirebaseDatabase
 
 final class FirebaseManager {
     static let shared = FirebaseManager()
-    private let auth = Auth.auth()
-    private let db = Firestore.firestore()
 
-    private init() {}
+    let auth: Auth
+    let database: DatabaseReference
 
-    func signIn(email: String, password: String, completion: @escaping (Bool) -> Void) {
-        auth.signIn(withEmail: email, password: password) { result, error in
-            completion(result != nil && error == nil)
-        }
+    private init() {
+        self.auth = Auth.auth()
+        self.database = Database.database().reference()
     }
 
-    func register(email: String, password: String, userType: UserType, completion: @escaping (Bool) -> Void) {
-        auth.createUser(withEmail: email, password: password) { result, error in
-            guard let uid = result?.user.uid, error == nil else {
-                completion(false)
-                return
-            }
-
-            self.db.collection("users").document(uid).setData([
-                "email": email,
-                "userType": userType.rawValue
-            ]) { error in
-                completion(error == nil)
-            }
-        }
+    var currentUserId: String? {
+        auth.currentUser?.uid
     }
 
-    func currentUserID() -> String? {
-        return auth.currentUser?.uid
-    }
-
-    func signOut() {
+    func logout() {
         try? auth.signOut()
     }
 }

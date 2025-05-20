@@ -4,45 +4,74 @@
 //
 //  Created by XECE on 18.05.2025.
 //
-
 import SwiftUI
+import FirebaseAuth
 
 struct RegisterView: View {
-    @StateObject private var viewModel = AuthVM()
-    @State private var selectedCity = "İstanbul"
+    @Binding var userRole: UserRole?
+    @AppStorage("userRole") private var storedUserRole: String = ""
+
+    @State private var email: String = ""
+    @State private var password: String = ""
+    @State private var selectedRole: UserRole = .passenger
+    @State private var errorMessage: String?
 
     var body: some View {
-        VStack(spacing: 20) {
-            TextField("E-posta", text: $viewModel.email)
-                .autocapitalization(.none)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+        NavigationView {
+            VStack(spacing: 20) {
+                Text("Welcome")
+                    .font(.largeTitle)
+                    .padding(.top, 40)
 
-            SecureField("Şifre", text: $viewModel.password)
-                .textFieldStyle(RoundedBorderTextFieldStyle())
+                TextField("Email", text: $email)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+                    .keyboardType(.emailAddress)
+                    .autocapitalization(.none)
 
-            Picker("İl Seçiniz", selection: $selectedCity) {
-                ForEach(turkishCities, id: \.self) { city in
-                    Text(city)
+                SecureField("Password", text: $password)
+                    .textFieldStyle(RoundedBorderTextFieldStyle())
+
+                Picker("Role", selection: $selectedRole) {
+                    Text("Passenger").tag(UserRole.passenger)
+                    Text("Driver").tag(UserRole.driver)
                 }
-            }
-            .pickerStyle(WheelPickerStyle())
-            .onChange(of: selectedCity) { viewModel.city = $0 }
+                .pickerStyle(SegmentedPickerStyle())
+                .padding(.horizontal)
 
-            Button("Kayıt Ol") {
-                Task {
-                    await viewModel.register { success in
-                        print(success ? "Kayıt Başarılı" : "Kayıt Hatası")
+                Button("Enter") {
+                    registerAndProceed()
+                }
+                .buttonStyle(.borderedProminent)
+
+                if let error = errorMessage {
+                    Text(error)
+                        .foregroundColor(.red)
+                }
+
+                Spacer()
+            }
+            .padding()
+        }
+    }
+
+    private func registerAndProceed() {
+        Auth.auth().signIn(withEmail: email, password: password) { result, error in
+            if let error = error {
+                Auth.auth().createUser(withEmail: email, password: password) { result, createError in
+                    if let createError = createError {
+                        errorMessage = createError.localizedDescription
+                    } else {
+                        proceedToHome()
                     }
                 }
+            } else {
+                proceedToHome()
             }
-
-            if let error = viewModel.errorMessage {
-                Text(error).foregroundColor(.red)
-            }
-
-            Spacer()
         }
-        .padding()
-        .navigationTitle("Kayıt Ol")
+    }
+
+    private func proceedToHome() {
+        storedUserRole = selectedRole.rawValue
+        userRole = selectedRole
     }
 }
